@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cadastro de Veículos</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Div para exibir mensagens de sucesso ou erro -->
+<div id="mensagem"></div>
+
+<header>
+  <h1 id="prin">Cadastro de Veículos</h1>
+</header>
+
+
+
+
+<section id="primeira-sessao">
+  <!-- Formulário para cadastro/edição de veículos -->
+  <form class="form-container" id="form-veiculo">
+    <label><input type="text" id="renavam" placeholder="RENAVAM"/></label>
+    <label><input type="text" id="placa" placeholder="Placa" /></label>
+    <label><input type="text" id="chassi" placeholder="Chassi" /></label>
+    <label><input type="text" id="modelo" placeholder="Modelo" /></label>
+    <label><input type="text" id="marca" placeholder="Marca" /></label>
+    <label><input type="number" id="ano" placeholder="Ano" /></label>
+    <button type="submit">Salvar</button>
+  </form>
+</section>
+
+
+
+
+<section class="segunda">
+    
+    <h2>Veículos Cadastrados</h2>
+    <!-- Tabela para listar veículos cadastrados -->
+    <table id="tabela-veiculos">
+      <thead>
+        <tr>
+          <th>RENAVAM</th>
+          <th>Placa</th>
+          <th>Chassi</th>
+          <th>Modelo</th>
+          <th>Marca</th>
+          <th>Ano</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody> <!-- Corpo da tabela será preenchido dinamicamente -->
+    </table>
+</section>
+
+
+
+<script>
+  // URL base da API para requisições ao backend
+  const apiUrl = "../api/";
+
+
+
+
+
+  /**
+   * Exibe uma mensagem na tela para o usuário.
+   * @param {string} msg - Texto da mensagem.
+   * @param {string} tipo - Tipo da mensagem ('sucesso' ou 'erro').
+   */
+  function exibirMensagem(msg, tipo) {
+    const div = document.getElementById("mensagem");
+    div.innerText = msg;
+    div.style.display = "block";
+    div.style.backgroundColor = tipo === "sucesso" ? "lightgreen" : "lightcoral";
+    setTimeout(() => {
+      div.style.display = "none";
+    }, 4000);
+  }
+
+
+
+
+
+  /**
+   * Lista os veículos cadastrados e exibe na tabela.
+   */
+  async function listarVeiculos() {
+    // Requisição GET para buscar veículos
+    const res = await fetch(apiUrl + "read.php");
+    const dados = await res.json();
+
+
+
+
+    // Seleciona o corpo da tabela e limpa conteúdo antigo
+    const tbody = document.querySelector("#tabela-veiculos tbody");
+    tbody.innerHTML = "";
+
+
+
+    
+    // Cria linhas da tabela com dados dos veículos
+    dados.forEach(v => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${v.renavam}</td>
+        <td>${v.placa}</td>
+        <td>${v.chassi}</td>
+        <td>${v.modelo}</td>
+        <td>${v.marca}</td>
+        <td>${v.ano}</td>
+        <td>
+          <button onclick='editar(${JSON.stringify(v)})'>Editar</button>
+          <button onclick='deletar("${v.renavam}")'>Excluir</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+
+
+
+
+  // Controla se o formulário está no modo edição
+  let editando = false;
+
+
+
+
+  // Evento disparado ao enviar o formulário (novo cadastro ou edição)
+  document.getElementById("form-veiculo").addEventListener("submit", async (e) => {
+    e.preventDefault(); // Evita recarregamento da página
+
+
+
+
+
+    // Captura os dados preenchidos no formulário
+    const dados = {
+      renavam: document.getElementById("renavam").value,
+      placa: document.getElementById("placa").value,
+      chassi: document.getElementById("chassi").value,
+      modelo: document.getElementById("modelo").value,
+      marca: document.getElementById("marca").value,
+      ano: parseInt(document.getElementById("ano").value)
+    };
+
+
+
+
+
+    // Define qual arquivo PHP chamar: create.php ou update.php
+    const metodo = editando ? "update.php" : "create.php";
+
+
+
+
+    try {
+      // Envia os dados via POST para o backend
+      const resposta = await fetch(apiUrl + metodo, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dados)
+      });
+
+
+
+
+
+      // Lê resposta JSON do backend
+      const resultado = await resposta.json();
+
+
+
+
+
+      // Tratar diferentes status HTTP
+      if (resposta.status === 201) {
+        exibirMensagem(resultado.message || "Veículo cadastrado com sucesso!", "sucesso");
+        e.target.reset();  // Limpa o formulário
+        editando = false;  // Sai do modo edição
+        listarVeiculos();  // Atualiza a tabela
+      } else if (resposta.status === 409) {
+        exibirMensagem(resultado.message || "Veículo já cadastrado!", "erro");
+      } else if (resposta.status === 400) {
+        exibirMensagem(resultado.message || "Campos obrigatórios faltando!", "erro");
+      } else {
+        exibirMensagem(resultado.message || "Erro ao salvar o veículo.", "erro");
+      }
+    } catch (error) {
+      exibirMensagem("Erro na comunicação com o servidor.", "erro");
+    }
+  });
+
+  /**
+   * Deleta um veículo cadastrado pelo RENAVAM.
+   * @param {string} renavam - Identificador do veículo.
+   */
+  async function deletar(renavam) {
+    // Confirmação do usuário antes de excluir
+    if (!confirm("Deseja realmente excluir este veículo?")) return;
+
+    // Requisição DELETE para remover o veículo
+    await fetch(apiUrl + "delete.php", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ renavam })
+    });
+
+    listarVeiculos(); // Atualiza a tabela após exclusão
+  }
+
+
+
+
+
+  /**
+   * Preenche o formulário com os dados de um veículo para edição.
+   * @param {object} dados - Dados do veículo.
+   */
+  function editar(dados) {
+    document.getElementById("renavam").value = dados.renavam;
+    document.getElementById("placa").value = dados.placa;
+    document.getElementById("chassi").value = dados.chassi;
+    document.getElementById("modelo").value = dados.modelo;
+    document.getElementById("marca").value = dados.marca;
+    document.getElementById("ano").value = dados.ano;
+    editando = true; // Ativa o modo edição
+  }
+
+
+
+
+
+
+
+  // Ao carregar a página, lista os veículos cadastrados
+  listarVeiculos();
+</script>
+
+</body>
+</html>
